@@ -1,0 +1,10 @@
+<?xml version="1.0" ?>
+<launch>
+	<include file="$(find gazebo_ros)/launch/empty_world.launch">
+		<arg name="paused" value="true"/>
+		<arg name="use_sim_time" value="true"/>
+	</include>
+
+	<param name="box_description" command="$(find xacro)/xacro $(find mouse_gazebo)/models/box.xacro"/>
+	<node name="box" pkg="gazebo_ros" type="spawn_model" args="-param box_description -urdf -model box"/>
+</launch>
