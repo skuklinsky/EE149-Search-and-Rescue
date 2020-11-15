@@ -1,10 +1,19 @@
 <?xml version="1.0" ?>
 <launch>
+	<arg name="box_x" default="1"/>
+	<arg name="box_y" default="1"/>
+
 	<include file="$(find gazebo_ros)/launch/empty_world.launch">
-		<arg name="paused" value="true"/>
+		<arg name="paused" value="false"/>
 		<arg name="use_sim_time" value="true"/>
 	</include>
 
+	<!-- Spawn box -->
 	<param name="box_description" command="$(find xacro)/xacro $(find mouse_gazebo)/models/box.xacro"/>
-	<node name="box" pkg="gazebo_ros" type="spawn_model" args="-param box_description -urdf -model box"/>
+	<node pkg="gazebo_ros" type="spawn_model" name="spawn_box" args="-param box_description -urdf -model box -y $(arg box_y) -x $(arg box_x)"/>
+
+	<!-- Spawn mice -->
+	<arg name="mouse_name" default="mouse1"/>
+	<param name="mouse_description" command="$(find xacro)/xacro $(find mouse_description)/urdf/mouse.xacro name:=$(arg mouse_name)"/>
+	<node pkg="gazebo_ros" type="spawn_model" name="spawn_mouse" args="-param mouse_description -urdf -model $(arg mouse_name)"/>
 </launch>

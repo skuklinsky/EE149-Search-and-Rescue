@@ -23,13 +23,13 @@ For some reason rosdep is not installed by default.
 	sudo rosdep init
 	rosdep update
 
-### Install Gazebo
+Miscalleneous packages to install
 
-Already installed with ros-noetic-desktop-full!
+	sudo apt install ros-noetic-teleop-twist-keyboard
 
 ### Create Workspace and Install Packages
 
-You can also clone this repo into your own workspace!
+Alternatively you can also clone this repo into your own workspace!
 
 	mkdir -p EE149/src
 	cd EE149/src
