@@ -41,6 +41,7 @@
 		</gazebo>
 	</link>
 
+	<!-- Actuation -->
 	<link name="left_wheel">
 		<visual>
 			<origin xyz="0 0 0" rpy="0 0 0"/>
@@ -66,8 +67,8 @@
 		</inertial>
 
 		<gazebo reference="left_wheel">
-			<mu1>0.5</mu1>
-			<mu2>0.5</mu2>
+			<mu1>1.0</mu1>
+			<mu2>1.0</mu2>
 			<kp>1000000.0</kp>
 			<kd>100.0</kd>
 			<minDepth>0.001</minDepth>
@@ -100,8 +101,8 @@
 		</inertial>
 
 		<gazebo reference="right_wheel">
-			<mu1>0.5</mu1>
-			<mu2>0.5</mu2>
+			<mu1>1.0</mu1>
+			<mu2>1.0</mu2>
 			<kp>1000000.0</kp>
 			<kd>100.0</kd>
 			<minDepth>0.001</minDepth>
@@ -127,14 +128,26 @@
 		<limit effort="${wheel_torque}" velocity="${wheel_veloc}"/>
 	</joint>
 
+	<!-- Sensors -->
+
 	<!-- Gazebo Sensors -->
+
+	<!-- TODO add IR sensors -->
+
+	<!-- TODO add IMU sensor -->
+
+	<!-- TODO add mouse sensor -->
+
+	<!-- TODO add front color sensor -->
+
+	<!-- TODO add GPS sensor -->
 
 	<!-- Gazebo Actuation -->
 	<gazebo>
 		<plugin name="differential_drive_controller" filename="libgazebo_ros_diff_drive.so">
 			<rosDebugLevel>0</rosDebugLevel>
 			<alwaysOn>true</alwaysOn>
-			<updateRate>60</updateRate>
+			<updateRate>100</updateRate>
 			
 			<leftJoint>right_mot</leftJoint>
 			<rightJoint>left_mot</rightJoint>
@@ -146,6 +159,8 @@
 			
 			<commandTopic>$(arg name)/cmd_vel</commandTopic>
 			<odometryTopic>$(arg name)/odom</odometryTopic>
+
+			<!-- world == perfect positioning -->
 			<odometrySource>world</odometrySource>
 
 			<odometryFrame>$(arg name)/odom</odometryFrame>
