@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+import rospy
+import sys
+import argparse
+import os
+import math
+
+from gazebo_msgs.srv import SpawnModel
+from gazebo_msgs.srv import SpawnModelRequest
+import tf_conversions
+
+if __name__ == '__main__':
+	rospy.init_node('spawner')
+
+	print('Retrieving args...')
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-x', help='Box x position', type=float, default=rospy.get_param('/launch/box_x'))
+	parser.add_argument('-y', help='Box y position', type=float, default=rospy.get_param('/launch/box_y'))
+	parser.add_argument('-n', help='Number of mice', type=int, default=rospy.get_param('/launch/num_mice'))
+	parser.add_argument('-a', help='Mice starting angle offset (radians)', type=float, default=rospy.get_param('/launch/mice_angle'))
+	parser.add_argument('-r', help='Mice placement radius', type=float, default=rospy.get_param('/launch/mice_radius'))
+	args = parser.parse_args(rospy.myargv(argv=sys.argv)[1:])
+
+	print('Putting args back in parameter server...')
+	rospy.set_param('/launch/box_x', args.x)
+	rospy.set_param('/launch/box_y', args.y)
+	rospy.set_param('/launch/num_mice', args.n)
+	rospy.set_param('/launch/mice_angle', args.a)
+	rospy.set_param('/launch/mice_radius', args.r)
+
+	# helper funcs
+	def find(pkg):
+		s = os.popen('rospack find ' + pkg)
+		return s.read().strip()
+
+	def param(name, cmd):
+		s = os.popen(cmd)
+		rospy.set_param(name, s.read().strip())
+
+	def spawn_model(name, desc, x=0, y=0, z=0, R=0, P=0, Y=0):
+		spawn = rospy.ServiceProxy('/gazebo/spawn_urdf_model', SpawnModel)
+		config = SpawnModelRequest()
+		config.model_name = name
+		config.model_xml = rospy.get_param(desc)
+		config.initial_pose.position.x = x
+		config.initial_pose.position.y = y
+		config.initial_pose.position.z = z
+		q = tf_conversions.transformations.quaternion_from_euler(R, P, Y)
+		config.initial_pose.orientation.x  = q[0]
+		config.initial_pose.orientation.y  = q[1]
+		config.initial_pose.orientation.z  = q[2]
+		config.initial_pose.orientation.w  = q[3]
+		spawn(config)
+
+	rospy.wait_for_service('/gazebo/spawn_urdf_model')
+
+	print('Spawning box...')
+	param('box_desc', f'xacro {find("mouse_gazebo")}/models/box.xacro')
+	spawn_model('box', 'box_desc', x=args.x, y=args.y)
+
+	print('Spawning mice...')
+	param('mouse_desc', f'xacro {find("mouse_description")}/urdf/mouse.xacro')
+	for i in range(args.n):
+		ang = args.a + 2 * math.pi / args.n * i
+		spawn_model(f'mouse{i}', 'mouse_desc', x=round(args.r * math.cos(ang), 5), y=round(args.r * math.sin(ang), 5), Y=ang - math.pi/2)
+
+	print('Don\'t forget to unpause!')

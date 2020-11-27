@@ -4,8 +4,6 @@
 	<xacro:property name="wheel_dia" value="0.034"/>
 	<xacro:property name="wheel_torque" value="0.015"/>
 	<xacro:property name="wheel_veloc" value="105"/>
-	
-	<xacro:arg name="name" default="mouse"/>
 
 	<link name="base_link">
 		<visual>
@@ -157,14 +155,14 @@
 			<wheelDiameter>${wheel_dia}</wheelDiameter>
 			<wheelTorque>${wheel_torque}</wheelTorque>
 			
-			<commandTopic>$(arg name)/cmd_vel</commandTopic>
-			<odometryTopic>$(arg name)/odom</odometryTopic>
+			<commandTopic>cmd_vel</commandTopic>
+			<odometryTopic>odom</odometryTopic>
 
 			<!-- world == perfect positioning -->
 			<odometrySource>world</odometrySource>
 
-			<odometryFrame>$(arg name)/odom</odometryFrame>
-			<robotBaseFrame>$(arg name)/base</robotBaseFrame>
+			<odometryFrame>odom</odometryFrame>
+			<robotBaseFrame>base</robotBaseFrame>
 
 			<publishTf>1</publishTf>
 			<publishWheelTF>false</publishWheelTF>

@@ -42,3 +42,13 @@ Alternatively you can also clone this repo into your own workspace!
 
 	catkin_make
 	source devel/setup.sh
+
+	# Start everything
+	roslaunch mouse_gazebo start.launch
+
+	# Restart w/o killing Gazebo
+	rosrun mouse_gazebo killer
+	rosrun mouse_gazebo spawner
+
+	# Tip to kill stuff super quick
+	rosnode kill -a
