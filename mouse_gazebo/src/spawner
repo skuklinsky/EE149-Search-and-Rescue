@@ -42,6 +42,7 @@ if __name__ == '__main__':
 		config = SpawnModelRequest()
 		config.model_name = name
 		config.model_xml = rospy.get_param(desc)
+		config.robot_namespace = name
 		config.initial_pose.position.x = x
 		config.initial_pose.position.y = y
 		config.initial_pose.position.z = z
@@ -62,6 +63,5 @@ if __name__ == '__main__':
 	param('mouse_desc', f'xacro {find("mouse_description")}/urdf/mouse.xacro')
 	for i in range(args.n):
 		ang = args.a + 2 * math.pi / args.n * i
+		print('Spawning', f'mouse{i}')
 		spawn_model(f'mouse{i}', 'mouse_desc', x=round(args.r * math.cos(ang), 5), y=round(args.r * math.sin(ang), 5), Y=ang - math.pi/2)
-
-	print('Don\'t forget to unpause!')

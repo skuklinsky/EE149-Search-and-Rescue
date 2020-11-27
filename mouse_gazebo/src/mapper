@@ -6,6 +6,9 @@ from geometry_msgs.msg import TransformStamped
 from gazebo_msgs.srv import GetModelState
 
 def main():
+	# TODO change this to convert all model info to TF data (actually simpler)
+	# TODO and then turn off publish TF in the mouse.xacro
+
 	br = TransformBroadcaster()
 	rospy.wait_for_service('/gazebo/get_model_state')
 

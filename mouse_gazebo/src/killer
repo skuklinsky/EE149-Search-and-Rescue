@@ -15,16 +15,16 @@ if __name__ == '__main__':
 		print('Killing certain nodes...')
 		for n in rosnode.get_node_names():
 			if n not in NODES_KEEP:
+				print('Killing', n)
 				rosnode.kill_nodes([n])
 
 		print('Deleting certain models...')
 		rospy.ServiceProxy('/gazebo/unpause_physics', Empty)()
 		for m in rospy.wait_for_message('/gazebo/model_states', ModelStates, timeout=1.0).name:
 			if m not in MODELS_KEEP:
+				print('Deleting', m)
 				rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)(m)
-
-		print('Pausing simulation...')
-		rospy.ServiceProxy('/gazebo/pause_physics', Empty)()
+		
 		# can't reset simulation bc time moves backwards
 	except Exception as e:
 		print('FAILED!!! Just restart everything :(')

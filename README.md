@@ -46,7 +46,7 @@ Alternatively you can also clone this repo into your own workspace!
 	# Start everything
 	roslaunch mouse_gazebo start.launch
 
-	# Restart w/o killing Gazebo
+	# Restart w/o killing Gazebo (decently reliable)
 	rosrun mouse_gazebo killer
 	rosrun mouse_gazebo spawner
 
