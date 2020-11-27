@@ -126,20 +126,6 @@
 		<limit effort="${wheel_torque}" velocity="${wheel_veloc}"/>
 	</joint>
 
-	<!-- Sensors -->
-
-	<!-- Gazebo Sensors -->
-
-	<!-- TODO add IR sensors -->
-
-	<!-- TODO add IMU sensor -->
-
-	<!-- TODO add mouse sensor -->
-
-	<!-- TODO add front color sensor -->
-
-	<!-- TODO add GPS sensor -->
-
 	<!-- Gazebo Actuation -->
 	<gazebo>
 		<plugin name="differential_drive_controller" filename="libgazebo_ros_diff_drive.so">
@@ -161,7 +147,7 @@
 			<!-- world == perfect positioning -->
 			<odometrySource>world</odometrySource>
 
-			<odometryFrame>odom</odometryFrame>
+			<odometryFrame>map</odometryFrame>
 			<robotBaseFrame>base</robotBaseFrame>
 
 			<publishTf>1</publishTf>
@@ -170,4 +156,18 @@
 			<publishWheelJointState>false</publishWheelJointState>
 		</plugin>
 	</gazebo>
+
+	<!-- Sensors -->
+
+	<!-- Gazebo Sensors -->
+
+	<!-- TODO add IR sensors -->
+
+	<!-- TODO add IMU sensor -->
+
+	<!-- TODO add mouse sensor -->
+
+	<!-- TODO add front color sensor -->
+
+	<!-- TODO add GPS sensor -->
 </robot>

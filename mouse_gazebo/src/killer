@@ -4,7 +4,7 @@ from std_srvs.srv import Empty
 from gazebo_msgs.msg import ModelStates
 from gazebo_msgs.srv import DeleteModel
 
-NODES_KEEP = ['/rosout', '/gazebo_gui', '/gazebo']
+NODES_KEEP = ['/rosout', '/gazebo_gui', '/gazebo', '/mapper']
 MODELS_KEEP = ['ground_plane']
 
 if __name__ == '__main__':
@@ -23,9 +23,9 @@ if __name__ == '__main__':
 			if m not in MODELS_KEEP:
 				rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)(m)
 
-		print('Pausing and resetting simulation...')
+		print('Pausing simulation...')
 		rospy.ServiceProxy('/gazebo/pause_physics', Empty)()
-		rospy.ServiceProxy('/gazebo/reset_simulation', Empty)()
+		# can't reset simulation bc time moves backwards
 	except Exception as e:
 		print('FAILED!!! Just restart everything :(')
 		print('Error message:', e)

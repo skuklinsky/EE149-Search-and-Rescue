@@ -19,4 +19,5 @@
 	</include>
 
 	<node pkg="mouse_gazebo" type="spawner" name="spawner" output="screen"/>
+	<node pkg="mouse_gazebo" type="mapper" name="mapper" required="true"/>
 </launch>
