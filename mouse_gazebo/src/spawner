@@ -5,12 +5,16 @@ import argparse
 import os
 import math
 
+from std_srvs.srv import Empty
 from gazebo_msgs.srv import SpawnModel
 from gazebo_msgs.srv import SpawnModelRequest
 import tf_conversions
 
 if __name__ == '__main__':
 	rospy.init_node('spawner')
+
+	rospy.wait_for_service('/gazebo/pause_physics')
+	rospy.ServiceProxy('/gazebo/pause_physics', Empty)()
 
 	print('Retrieving args...')
 	parser = argparse.ArgumentParser()
@@ -65,3 +69,6 @@ if __name__ == '__main__':
 		ang = args.a + 2 * math.pi / args.n * i
 		print('Spawning', f'mouse{i}')
 		spawn_model(f'mouse{i}', 'mouse_desc', x=round(args.r * math.cos(ang), 5), y=round(args.r * math.sin(ang), 5), Y=ang - math.pi/2)
+
+	rospy.wait_for_service('/gazebo/unpause_physics')
+	rospy.ServiceProxy('/gazebo/unpause_physics', Empty)()
