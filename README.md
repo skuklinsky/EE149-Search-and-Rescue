@@ -52,3 +52,6 @@ Alternatively you can also clone this repo into your own workspace!
 
 	# Tip to kill stuff super quick
 	rosnode kill -a
+
+	# Tip for viewing debugging messages on /rosout
+	rosconsole echo -l debug

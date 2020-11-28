@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import rospy
+import rospkg
+import xacro
+
 import sys
 import argparse
-import os
+import subprocess
 import math
 
 from std_srvs.srv import Empty
@@ -34,12 +37,10 @@ if __name__ == '__main__':
 
 	# helper funcs
 	def find(pkg):
-		s = os.popen('rospack find ' + pkg)
-		return s.read().strip()
+		return rospkg.RosPack().get_path(pkg)
 
-	def param(name, cmd):
-		s = os.popen(cmd)
-		rospy.set_param(name, s.read().strip())
+	def param(name, xacro_file):
+		rospy.set_param(name, xacro.process_file(xacro_file).toxml())
 
 	def spawn_model(name, desc, x=0, y=0, z=0, R=0, P=0, Y=0):
 		spawn = rospy.ServiceProxy('/gazebo/spawn_urdf_model', SpawnModel)
@@ -60,15 +61,31 @@ if __name__ == '__main__':
 	rospy.wait_for_service('/gazebo/spawn_urdf_model')
 
 	print('Spawning box...')
-	param('box_desc', f'xacro {find("mouse_gazebo")}/models/box.xacro')
+	param('box_desc', f'{find("mouse_gazebo")}/models/box.xacro')
 	spawn_model('box', 'box_desc', x=args.x, y=args.y)
 
 	print('Spawning mice...')
-	param('mouse_desc', f'xacro {find("mouse_description")}/urdf/mouse.xacro')
+	param('mouse_desc', f'{find("mouse_description")}/urdf/mouse.xacro')
 	for i in range(args.n):
 		ang = args.a + 2 * math.pi / args.n * i
 		print('Spawning', f'mouse{i}')
-		spawn_model(f'mouse{i}', 'mouse_desc', x=round(args.r * math.cos(ang), 5), y=round(args.r * math.sin(ang), 5), Y=ang - math.pi/2)
+		spawn_model(f'mouse{i}', 'mouse_desc', x=round(args.r * math.cos(ang), 5), 
+			y=round(args.r * math.sin(ang), 5), Y=ang - math.pi/2)
 
+	# more helpers
+	def start_node(pkg, typ, name, ns='/'):
+		subprocess.Popen(['rosrun', pkg, typ, f'__name:={name}', f'__ns:={ns}'], 
+			stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+	print('Giving mice eyes...')
+	for i in range(args.n):
+		print(f'Mouse {i} you get an eye!')
+		start_node('mouse_description', 'sensor', 'sensor', f'mouse{i}')
+
+	print('Giving mice brains...')
+
+	print('Starting the hivemind...')
+
+	# TODO wait a little bit for all nodes to start? (by using a topic)
 	rospy.wait_for_service('/gazebo/unpause_physics')
 	rospy.ServiceProxy('/gazebo/unpause_physics', Empty)()

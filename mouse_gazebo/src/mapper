@@ -35,4 +35,7 @@ def main():
 
 if __name__ == '__main__':
 	rospy.init_node('mapper')
-	main()
+	try:
+		main()
+	except rospy.ROSInterruptException:
+		pass
