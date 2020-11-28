@@ -2,8 +2,17 @@
 import rospy
 import tf_conversions
 
+import numpy as np
+
 from mouse_description.msg import GPSData
 from gazebo_msgs.srv import GetModelState
+
+def modpi(ang):
+	while (ang > np.pi):
+		ang -= 2 * np.pi
+	while (ang < -np.pi):
+		ang += 2 * np.pi
+	return ang
 
 def main():
 	# TODO make an actual GPS instead of perfection
@@ -21,6 +30,7 @@ def main():
 		msg.ang = tf_conversions.transformations.euler_from_quaternion(
 			[pos.pose.orientation.x, pos.pose.orientation.y, 
 			pos.pose.orientation.z, pos.pose.orientation.w])[2]
+		msg.ang = modpi(msg.ang + np.pi/2)
 		pub.publish(msg)
 		r.sleep()
 

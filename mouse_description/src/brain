@@ -1,10 +1,73 @@
 #!/usr/bin/env python3
 import rospy
 
+import numpy as np
+
+from geometry_msgs.msg import Twist
+from mouse_description.msg import GPSData
+from mouse_description.msg import SensorData
+
+MAX_LINEAR = 2 # m/s
+MAX_ANGULAR = 6 # rad/s
+
+pos = GPSData()
+sense = SensorData()
+
+# DAQ
+def gpsCallback(data):
+	global pos
+	pos = data
+
+def sensorCallback(data):
+	global sense
+	sense = data
+
+# Math helpers
+def modpi(ang):
+	while (ang > np.pi):
+		ang -= 2 * np.pi
+	while (ang < -np.pi):
+		ang += 2 * np.pi
+	return ang
+
+# Control Loops
+def positionLoop(xd, yd, angd):
+	# Moves to a designated position and orientation in a rough beeline
+	ey = yd - pos.y
+	ex = xd - pos.x
+
+	# compute error
+	elin = np.sqrt(ex*ex + ey*ey)
+	eang = modpi(np.arctan2(ey, ex) - pos.ang)
+
+	# apply P control
+	ulin = 5*elin
+	ulin = np.clip(ulin, 0, MAX_LINEAR)# - 1 * abs(eang) # prioritize fixing direction
+	uang = 4*eang
+
+	# send it off
+	cmd = Twist()
+	cmd.linear.x = np.clip(ulin, 0, MAX_LINEAR)
+	cmd.angular.z = np.clip(uang, -MAX_ANGULAR, MAX_ANGULAR)
+
+	return cmd
+
+
+def main():
+	ns = rospy.get_namespace()
+	rospy.Subscriber(ns + 'gps_data', GPSData, gpsCallback)
+	rospy.Subscriber(ns + 'sensor_data', SensorData, sensorCallback)
+	motor = rospy.Publisher(ns + 'cmd_vel', Twist, queue_size=10)
+
+	r = rospy.Rate(30)
+	while not rospy.is_shutdown():
+		motor.publish(positionLoop(0, 0, 0))
+		# motor.publish(positionLoop(1, 1, 0))
+		r.sleep()
+
 if __name__ == '__main__':
 	rospy.init_node('brain')
-
-	r = rospy.Rate(1)
-	while not rospy.is_shutdown():
-		print("Hi", rospy.Time.now())
-		r.sleep()
+	try:
+		main()
+	except rospy.ROSInterruptException:
+		pass

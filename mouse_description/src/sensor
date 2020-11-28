@@ -51,12 +51,10 @@ def cameraCallback(data):
 	outData.color = list(img.astype(np.uint8))
 
 def main():
-	rospy.logdebug(f'Starting {rospy.get_name()}!')
 	ns = rospy.get_namespace()
-
-	rospy.Subscriber(ns + '/bumper', ContactsState, bumperCallback)
-	rospy.Subscriber(ns + '/image_raw', Image, cameraCallback)
-	pub = rospy.Publisher(ns + '/sensor_data', SensorData, queue_size=10)
+	rospy.Subscriber(ns + 'bumper', ContactsState, bumperCallback)
+	rospy.Subscriber(ns + 'image_raw', Image, cameraCallback)
+	pub = rospy.Publisher(ns + 'sensor_data', SensorData, queue_size=10)
 
 	r = rospy.Rate(30)
 	while not rospy.is_shutdown():
