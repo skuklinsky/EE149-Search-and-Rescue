@@ -2,6 +2,7 @@
 import rospy
 import rospkg
 import xacro
+import tf_conversions
 
 import sys
 import argparse
@@ -11,7 +12,6 @@ import math
 from std_srvs.srv import Empty
 from gazebo_msgs.srv import SpawnModel
 from gazebo_msgs.srv import SpawnModelRequest
-import tf_conversions
 
 if __name__ == '__main__':
 	rospy.init_node('spawner')
@@ -81,6 +81,7 @@ if __name__ == '__main__':
 	for i in range(args.n):
 		print(f'Mouse {i} you get an eye!')
 		start_node('mouse_description', 'sensor', 'sensor', f'mouse{i}')
+		start_node('mouse_description', 'gps', 'gps', f'mouse{i}')
 
 	print('Giving mice brains...')
 

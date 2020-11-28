@@ -55,3 +55,8 @@ Alternatively you can also clone this repo into your own workspace!
 
 	# Tip for viewing debugging messages on /rosout
 	rosconsole echo -l debug
+
+## Topics of Interest
+
+	/mouse*/sensor_data
+	/mouse*/gps_data

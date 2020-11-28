@@ -24,7 +24,7 @@ def main():
 			# rest are 0 by default
 			br.sendTransform(t)
 
-		box = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)('box', 'ground_plane')
+		box = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)('box', 'world')
 		if box.success:
 			t.child_frame_id = 'box'
 			t.transform.translation = box.pose.position
