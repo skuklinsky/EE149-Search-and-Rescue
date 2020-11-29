@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 import rospy
 
+from enum import Enum
 import numpy as np
 
 from geometry_msgs.msg import Twist
 from mouse_description.msg import GPSData
 from mouse_description.msg import SensorData
 
-MAX_LINEAR = 2 # m/s
-MAX_ANGULAR = 6 # rad/s
-
+# DAQ
 pos = GPSData()
 sense = SensorData()
 
-# DAQ
 def gpsCallback(data):
 	global pos
 	pos = data
@@ -30,27 +28,66 @@ def modpi(ang):
 		ang += 2 * np.pi
 	return ang
 
+def dist(x1, y1, x2, y2):
+	return np.sqrt((y1-y2)**2 + (x1-x2)**2)
+
+def getMouseNum():
+	return int(rospy.get_namespace()[-2])
+
 # Control Loops
-def positionLoop(xd, yd, angd):
-	# Moves to a designated position and orientation in a rough beeline
-	ey = yd - pos.y
+
+# Position based control
+# Uses state machine that performs actions while in a state, not on transition, for cleaner code
+# extremely strange instability above ~1.5m/s, happens in real life too
+# just drive slow and it's ok
+def positionLoop(xd, yd, angd=0, MAXLIN=0.5, MAXANG=8):
 	ex = xd - pos.x
+	ey = yd - pos.y
 
-	# compute error
-	elin = np.sqrt(ex*ex + ey*ey)
-	eang = modpi(np.arctan2(ey, ex) - pos.ang)
+	elin = np.sqrt(ex*ex + ey*ey) # linear distance error
+	eango = modpi(np.arctan2(ey, ex) - pos.ang) # orientation error
+	eangd = modpi(angd - pos.ang) # desired final angle error
 
-	# apply P control
-	ulin = 5*elin
-	ulin = np.clip(ulin, 0, MAX_LINEAR)# - 1 * abs(eang) # prioritize fixing direction
-	uang = 4*eang
+	cmd = Twist()
+	# Perform transitions
+	if positionLoop.state == positionLoop.States.ORIENT:
+		if abs(eango) < 0.005:
+			positionLoop.state = positionLoop.States.BEELINE
+	elif positionLoop.state == positionLoop.States.BEELINE:
+		if elin < 0.001:
+			positionLoop.state = positionLoop.States.ALIGN
+		elif abs(eango) > 0.5:
+			positionLoop.state = positionLoop.States.ORIENT
+	elif positionLoop.state == positionLoop.States.ALIGN:
+		if elin > 0.004:
+			positionLoop.state = positionLoop.States.ORIENT
+	else:
+		rospy.logerr('Invalid state!')
+		return None
+
+	# State actions
+	if positionLoop.state == positionLoop.States.ORIENT:
+		ulin = 0
+		uang = 10 * eango
+	elif positionLoop.state == positionLoop.States.BEELINE:
+		ulin = 10 * elin
+		uang = 10 * eango
+	elif positionLoop.state == positionLoop.States.ALIGN:
+		ulin = 0
+		uang = 10 * eangd
+	else:
+		rospy.logerr('Invalid state!')
+		return None
 
 	# send it off
 	cmd = Twist()
-	cmd.linear.x = np.clip(ulin, 0, MAX_LINEAR)
-	cmd.angular.z = np.clip(uang, -MAX_ANGULAR, MAX_ANGULAR)
+	cmd.linear.x = np.clip(ulin, 0, MAXLIN)
+	cmd.angular.z = np.clip(uang, -MAXANG, MAXANG)
 
 	return cmd
+
+positionLoop.States = Enum('posStates', 'ORIENT BEELINE ALIGN')
+positionLoop.state = positionLoop.States.ORIENT
 
 
 def main():
@@ -59,10 +96,20 @@ def main():
 	rospy.Subscriber(ns + 'sensor_data', SensorData, sensorCallback)
 	motor = rospy.Publisher(ns + 'cmd_vel', Twist, queue_size=10)
 
+	# TODO just a demo pls remove
+	xd, yd = 0, 0
+
 	r = rospy.Rate(30)
 	while not rospy.is_shutdown():
-		motor.publish(positionLoop(0, 0, 0))
-		# motor.publish(positionLoop(1, 1, 0))
+		# TODO just a demo pls remove
+		if dist(pos.x, pos.y, xd, yd) < 0.003:
+			if xd == 0:
+				xd, yd = 0.5, 0
+			else:
+				xd, yd = 0, 0
+		
+		motor.publish(positionLoop(xd, yd))
+		
 		r.sleep()
 
 if __name__ == '__main__':
