@@ -5,17 +5,27 @@ from enum import Enum
 import numpy as np
 
 from geometry_msgs.msg import Twist
+from mouse_description.msg import MouseCommand
+from mouse_description.msg import MouseData
 from mouse_description.msg import GPSData
 from mouse_description.msg import SensorData
 
 # DAQ
-pos = GPSData()
-sense = SensorData()
+cmd = None
+pos = None
+sense = None
 
+# commands from the mothership
+def commandCallback(data):
+	global cmd
+	cmd = data
+
+# position and orientation data
 def gpsCallback(data):
 	global pos
 	pos = data
 
+# bumper and color sensor data
 def sensorCallback(data):
 	global sense
 	sense = data
@@ -92,24 +102,34 @@ positionLoop.state = positionLoop.States.ORIENT
 
 def main():
 	ns = rospy.get_namespace()
+
+	# internal stuff
 	rospy.Subscriber(ns + 'gps_data', GPSData, gpsCallback)
 	rospy.Subscriber(ns + 'sensor_data', SensorData, sensorCallback)
 	motor = rospy.Publisher(ns + 'cmd_vel', Twist, queue_size=10)
 
-	# TODO just a demo pls remove
-	xd, yd = 0, 0
+	# wireless comms w/ mothership
+	rospy.Subscriber(ns + 'command', MouseCommand, commandCallback)
+	telem = rospy.Publisher(ns + 'telemetry', MouseData, queue_size=10)
+
+	while not (pos and sense):
+		pass # wait until all sensors are booted
 
 	r = rospy.Rate(30)
 	while not rospy.is_shutdown():
-		# TODO just a demo pls remove
-		if dist(pos.x, pos.y, xd, yd) < 0.003:
-			if xd == 0:
-				xd, yd = 0.5, 0
+		# movement commands
+		if cmd:
+			if cmd.type == MouseCommand.POSITION:
+				motor.publish(positionLoop(cmd.x, cmd.y, cmd.ang))
 			else:
-				xd, yd = 0, 0
-		
-		motor.publish(positionLoop(xd, yd))
-		
+				rospy.logerr('Invalid command!')
+
+		# TODO box position estimation
+		msg = MouseData()
+		msg.pos = pos
+		msg.boxPos = pos
+		telem.publish(msg)
+
 		r.sleep()
 
 if __name__ == '__main__':

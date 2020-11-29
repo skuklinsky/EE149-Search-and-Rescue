@@ -56,7 +56,21 @@ Alternatively you can also clone this repo into your own workspace!
 	# Tip for viewing debugging messages on /rosout
 	rosconsole echo -l debug
 
-## Topics of Interest
+## Stuff of Interest
 
-	/mouse*/sensor_data
-	/mouse*/gps_data
+	# Internal components to mice
+	/mouse*/sensor_data # bumper + color (camera w/ processing)
+	/mouse*/gps_data # currently returns perfect info
+	/mouse*/cmd_vel # commands to motors (runs thru a control loop in Gazebo)
+
+	# Wireless comms w/ mothership
+	/mouse*/command
+	/mouse*/telemetry # position + box estimated position
+
+	# "Threads" running per mouse
+	/mouse*/gps
+	/mouse*/sensor
+	/mouse*/brain
+
+	# The mothership that oversees all
+	/mothership
