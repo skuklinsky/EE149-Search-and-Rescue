@@ -64,6 +64,10 @@ if __name__ == '__main__':
 	param('box_desc', f'{find("mouse_gazebo")}/models/box.xacro')
 	spawn_model('box', 'box_desc', x=args.x, y=args.y)
 
+	print('Spawning ghost box...')
+	param('ghostbox_desc', f'{find("mouse_gazebo")}/models/ghostbox.xacro')
+	spawn_model('ghostbox', 'ghostbox_desc', x=0, y=0)
+
 	print('Spawning mice...')
 	param('mouse_desc', f'{find("mouse_description")}/urdf/mouse.xacro')
 	for i in range(args.n):

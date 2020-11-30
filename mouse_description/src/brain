@@ -126,6 +126,7 @@ def main():
 
 		# TODO box position estimation
 		msg = MouseData()
+		msg.confidence = 1.0
 		msg.pos = pos
 		msg.boxPos = pos
 		telem.publish(msg)

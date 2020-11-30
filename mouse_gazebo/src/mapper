@@ -31,6 +31,13 @@ def main():
 			t.transform.rotation = box.pose.orientation
 			br.sendTransform(t)
 
+		box = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)('ghostbox', 'world')
+		if box.success:
+			t.child_frame_id = 'ghostbox'
+			t.transform.translation = box.pose.position
+			t.transform.rotation = box.pose.orientation
+			br.sendTransform(t)
+
 		r.sleep()
 
 if __name__ == '__main__':
