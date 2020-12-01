@@ -12,7 +12,7 @@
 		</visual>
 
 		<!-- Collision bitmasks not parsed properly currently -->
-		<!-- So here's the janky workaround -->
+		<!-- So here's the janky workaround, actually cleaner -->
 
 		<inertial>
 			<origin xyz="0 0 ${len/2}" rpy="0 0 0"/>
@@ -25,6 +25,9 @@
 	</link>
 
 	<gazebo reference="base_link">
+		<visual>
+			<plugin name="invisible" filename="libmouse_gazebo.so"/>
+		</visual>
 		<turnGravityOff>true</turnGravityOff>
 		<material>Gazebo/GreenTransparent</material>
 	</gazebo>
