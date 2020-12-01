@@ -41,6 +41,9 @@ def modpi(ang):
 def dist(x1, y1, x2, y2):
 	return np.sqrt((y1-y2)**2 + (x1-x2)**2)
 
+def map(val, in_min, in_max, out_min, out_max):
+	return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+
 def getMouseNum():
 	return int(rospy.get_namespace()[-2])
 
@@ -102,15 +105,15 @@ positionLoop.state = positionLoop.States.ORIENT
 # Estimation Algorithm
 def estimateBox():
 	x, y, a, c = 0, 0, 0, 0
-	xm, ym, am = 0, 0, 0
+	xm, ym, am, dl = 0, 0, 0, 0
 
 	# Based on 3D model of mouse in Fusion 360
 	# Bumper sensors flexing is a feature not a bug :P
 	# Assumes box is 0.25m
+	# Assumes camera range is 0.25m and can see entire box when against it
+	# Lots of constants experimentally determined
 
 	# Algorithm first computes location of box relative to mouse frame
-	# TODO use color sensor, currently assumes contact in middle of box	
-	# TODO corner contacts are particularly hard to judge, reduce confidence
 	# Mouse frame is x-axis in front of mouse
 	# Then transforms to world frame for final estimate
 
@@ -119,38 +122,56 @@ def estimateBox():
 		xm = 0.0305 + 0.1028 # mouse + box
 		ym = 0.0202 + 0.0711 # mouse + box
 		am = 0.6056 # 34.7deg
+		dl = map(colorNorm(), 0.15, 0.25, -0.125, 0.125)
 	elif sense.leftFrontBump and sense.rightFrontBump:
-		c = 1.0
+		# most accurate sensing method
+		c = 1.5
 		xm = 0.037 + 0.125 # mouse + box
 		ym = 0
 		am = 0 # flat relative to mouse
+		dl = map(colorNorm(), -0.25, 0.25, -0.125, 0.125)
 	elif sense.rightFrontBump and sense.rightBump:
 		c = 1.0
 		xm = 0.0305 + 0.1028 # mouse + box
 		ym = -0.0202 - 0.0711 # mouse + box
 		am = -0.6056 # 34.7deg
+		dl = map(colorNorm(), -0.25, -0.15, -0.125, 0.125)
 	elif sense.leftBump: # One bumper == medium accuracy
 		c = 0.5
 		xm = 0.0247 + 0.0992 # mouse + box
 		ym = 0.0286 + 0.0763 # mouse + box
 		am = 0.6562 # 37.6deg
+		dl = map(colorNorm(), 0.0, 0.3, -0.125, 0.125)
 	elif sense.rightBump:
 		c = 0.5
 		xm = 0.0247 + 0.0992 # mouse + box
 		ym = -0.0286 - 0.0763 # mouse + box
 		am = -0.6562 # 37.6deg
+		dl = map(colorNorm(), -0.3, 0.0, -0.125, 0.125)
 	elif sense.leftFrontBump:
 		c = 0.5
 		xm = 0.0368 + 0.1193 # mouse + box
 		ym = 0.0106 + 0.0372 # mouse + box
 		am = 0.3019 # 17.3deg
+		dl = map(colorNorm(), -0.2, 0.3, -0.125, 0.125)
 	elif sense.rightFrontBump:
 		c = 0.5
 		xm = 0.0368 + 0.1193 # mouse + box
 		ym = -0.0106 - 0.0372 # mouse + box
 		am = -0.3019 # 17.3deg
-	else: # No bumpers but camera == low accuracy
-		pass
+		dl = map(colorNorm(), -0.3, 0.2, -0.125, 0.125)
+	elif any(sense.color): # No bumpers but camera == low accuracy
+		# DO NOT TRIGGER RETRIEVAL STATE ON THIS (NOT REALISTIC)
+		# Uses apparent size to give very rough estimate
+		c = 0.1
+		R = 0.1 + 0.125 # assumed distance
+		am = colorNorm() * 2.65
+		xm = R * np.cos(am)
+		ym = R * np.sin(am)
+
+	# shift using color sensor
+	xm -= dl * np.sin(am)
+	ym += dl * np.cos(am)
 
 	# rotate by mouse angle to get offset in world frame
 	dx = xm * np.cos(pos.ang) - ym * np.sin(pos.ang)
@@ -160,6 +181,21 @@ def estimateBox():
 	y = pos.y + dy
 	a = pos.ang + am
 	return x, y, a, c
+
+def colorNorm(): # 0.5 to -0.5
+	return (sense.colorLength - colorLeft() - colorRight()) / 2 / sense.colorLength
+
+def colorLeft():
+	for i in range(sense.colorLength):
+		if sense.color[i]:
+			return i
+	return -1
+
+def colorRight():
+	for i in reversed(range(sense.colorLength)):
+		if sense.color[i]:
+			return i
+	return sense.colorLength
 
 def main():
 	ns = rospy.get_namespace()
