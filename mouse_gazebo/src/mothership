@@ -2,6 +2,7 @@
 import rospy
 import tf_conversions
 
+from enum import Enum
 import numpy as np
 
 from mouse_description.msg import MouseCommand
@@ -18,6 +19,8 @@ def mouseCallback(data, num):
 	miceData[num] = data
 
 # Estimate
+save_x, save_y, save_ang, save_mouse = 0, 0, 0, 0 # storage for future use
+
 def getEstimate():
 	x, y, a, c = 0, 0, 0, 0
 	for d in miceData:
@@ -33,7 +36,8 @@ def getEstimate():
 	return x, y, a, c
 
 def displayEstimate():
-	x, y, a, _ = getEstimate()
+	x, y, a = save_x, save_y, save_ang
+	# x, y, a, _ = getEstimate()
 	args = SetModelStateRequest()
 	args.model_state.model_name = 'ghostbox'
 	args.model_state.reference_frame = 'world'
@@ -46,6 +50,24 @@ def displayEstimate():
 	args.model_state.pose.orientation.z = q[2]
 	args.model_state.pose.orientation.w = q[3]
 	rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)(args)
+
+def storeEstimate(threshold):
+	# stores estimate if confidence above threshold, returns True if stores
+	# also stores mouse with highest confidence
+	x, y, a, c = getEstimate()
+	if c < threshold:
+		return False
+	global save_x, save_y, save_ang, save_mouse
+	save_x, save_y, save_ang = x, y, a
+	save_mouse = max(range(N), key=lambda x: miceData[x].confidence)
+	return True
+
+# General Helpers
+def stopMouse(i):
+	cmd = MouseCommand()
+	cmd.type = MouseCommand.VELOC
+	cmd.x, cmd.ang = 0, 0
+	miceControl[i].publish(cmd)
 
 # Math helpers
 def modpi(ang):
@@ -66,6 +88,7 @@ def dist(x1, y1, x2, y2):
 	return np.sqrt((y1-y2)**2 + (x1-x2)**2)
 
 def main():
+	global miceControl
 	miceControl = []
 	for i in range(N):
 		rospy.Subscriber(f'mouse{i}/telemetry', MouseData, mouseCallback, i)
@@ -74,40 +97,54 @@ def main():
 	while not all(miceData):
 		pass # wait for mice to bootup and send telemetry
 
+	# State machine setup
+	masterStates = Enum('masterStates', 'SEARCH HOME REGROUP RETRIEVE DONE')
+	state = masterStates.SEARCH
+
 	# TODO DEMO REMOVE LATER
 	poses = [(1,0,np.pi/2), (0,1,np.pi), (-1,0,-np.pi/2), (0,-1,0)]
 
 	r = rospy.Rate(30)
 	while not rospy.is_shutdown():
-		# TODO DEMO REMOVE LATER
-		if sum([dist(miceData[i].pos.x, miceData[i].pos.y, poses[i][0], poses[i][1]) for i in range(N)]) < 0.01:
-			poses = poses[1:] + [poses[0]]
+		if state == masterStates.SEARCH:
+			if storeEstimate(0.5): # two bumper hit
+				state = masterStates.HOME
+				# TODO change this, currently stops everyone
+				for i in range(N):
+					stopMouse(i)
+			else:
+				# TODO DEMO REMOVE LATER
+				if sum([dist(miceData[i].pos.x, miceData[i].pos.y, poses[i][0], poses[i][1]) for i in range(N)]) < 0.01:
+					poses = poses[1:] + [poses[0]]
 
-		for i in range(N):
-			cmd = MouseCommand()
-			cmd.type = MouseCommand.POSITION
-			cmd.x = poses[i][0]
-			cmd.y = poses[i][1]
-			cmd.ang = poses[i][2]
-			miceControl[i].publish(cmd)
-
-		# for i in range(N):
-		# 	cmd = MouseCommand()
-		# 	cmd.type = MouseCommand.PUSH
-		# 	cmd.x = 0.5
-		# 	miceControl[i].publish(cmd)
-
-		# if not miceData[0].finished:
-		# 	cmd = MouseCommand()
-		# 	cmd.type = MouseCommand.HOME
-		# 	cmd.y = 0
-		# 	miceControl[0].publish(cmd)
-		# else:
-		# 	cmd = MouseCommand()
-		# 	cmd.type = MouseCommand.VELOC
-		# 	cmd.x = 0
-		# 	cmd.ang = 0
-		# 	miceControl[0].publish(cmd)
+				for i in range(N):
+					cmd = MouseCommand()
+					cmd.type = MouseCommand.POSITION
+					cmd.x = poses[i][0]
+					cmd.y = poses[i][1]
+					cmd.ang = poses[i][2]
+					miceControl[i].publish(cmd)
+		elif state == masterStates.HOME: # get a really accurate estimate of box
+			if miceData[save_mouse].finished:
+				state = masterStates.REGROUP
+				storeEstimate(1.25)
+				# TODO change this, currently stops everyone, can probs compute waypoints
+				for i in range(N):
+					stopMouse(i)
+			else:
+				cmd = MouseCommand()
+				cmd.type = MouseCommand.HOME
+				cmd.y = 0
+				miceControl[save_mouse].publish(cmd)
+		elif state == masterStates.REGROUP: # move everyone into position
+			# TODO move everyone including the homer, move last guy to origin
+			pass
+		elif state == masterStates.RETRIEVE:
+			# TODO tell everyone to go forward
+			# also go back to HOME state and do other axis
+			pass
+		else: # DONE
+			pass
 
 		# TODO Mod as needed, just visualization aid
 		displayEstimate()
