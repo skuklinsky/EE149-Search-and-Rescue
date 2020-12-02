@@ -91,6 +91,24 @@ def main():
 			cmd.ang = poses[i][2]
 			miceControl[i].publish(cmd)
 
+		# for i in range(N):
+		# 	cmd = MouseCommand()
+		# 	cmd.type = MouseCommand.PUSH
+		# 	cmd.x = 0.5
+		# 	miceControl[i].publish(cmd)
+
+		# if not miceData[0].finished:
+		# 	cmd = MouseCommand()
+		# 	cmd.type = MouseCommand.HOME
+		# 	cmd.y = 0
+		# 	miceControl[0].publish(cmd)
+		# else:
+		# 	cmd = MouseCommand()
+		# 	cmd.type = MouseCommand.VELOC
+		# 	cmd.x = 0
+		# 	cmd.ang = 0
+		# 	miceControl[0].publish(cmd)
+
 		# TODO Mod as needed, just visualization aid
 		displayEstimate()
 
