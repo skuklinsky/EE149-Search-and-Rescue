@@ -19,7 +19,7 @@ def mouseCallback(data, num):
 	miceData[num] = data
 
 # Estimate
-save_x, save_y, save_ang, save_mouse = 0, 0, 0, 0 # storage for future use
+save_x, save_y, save_ang, save_c, save_mouse = 0, 0, 0, 0, 0 # storage for future use
 
 def getEstimate():
 	x, y, a, c = 0, 0, 0, 0
@@ -36,8 +36,7 @@ def getEstimate():
 	return x, y, a, c
 
 def displayEstimate():
-	x, y, a = save_x, save_y, save_ang
-	# x, y, a, _ = getEstimate()
+	x, y, a, c = getEstimate()
 	args = SetModelStateRequest()
 	args.model_state.model_name = 'ghostbox'
 	args.model_state.reference_frame = 'world'
@@ -58,7 +57,7 @@ def storeEstimate(threshold):
 	if c < threshold:
 		return False
 	global save_x, save_y, save_ang, save_mouse
-	save_x, save_y, save_ang = x, y, a
+	save_x, save_y, save_ang, save_c = x, y, a, c
 	save_mouse = max(range(N), key=lambda x: miceData[x].confidence)
 	return True
 
@@ -68,6 +67,120 @@ def stopMouse(i):
 	cmd.type = MouseCommand.VELOC
 	cmd.x, cmd.ang = 0, 0
 	miceControl[i].publish(cmd)
+
+def posMouse(i, xd, yd, angd):
+	cmd = MouseCommand()
+	cmd.type = MouseCommand.POSITION
+	cmd.x = xd
+	cmd.y = yd
+	cmd.ang = angd
+	miceControl[i].publish(cmd)
+
+def homeMouse(i, yd):
+	cmd = MouseCommand()
+	cmd.type = MouseCommand.HOME
+	cmd.y = yd
+	miceControl[i].publish(cmd)
+
+# State machine helpers
+
+def computeRegroupY():
+	R1 = 0.05 # starting distance to push
+	R2 = 0.1 # addition to R1
+	OFF = 0.085 # offset from other mice
+	global waypoints, pushMice
+	if save_y > 0:
+		xt, yt, at = save_x, save_y + 0.125 + R1, -np.pi/2
+		# place save_mouse
+		waypoints[save_mouse].append((xt, yt, at))
+		if miceData[save_mouse].pos.y < save_y + 0.125:
+			if miceData[save_mouse].pos.x < xt:
+				waypoints[save_mouse].insert(0, (xt - 0.125 - R1, yt, 0))
+				if miceData[save_mouse].pos.y < save_y - 0.125:
+					waypoints[save_mouse].insert(0, (xt - 0.125 - R1, save_y - 0.125 - R1, 0))
+			else:
+				waypoints[save_mouse].insert(0, (xt + 0.125 + R1, yt, np.pi))
+				if miceData[save_mouse].pos.y < save_y - 0.125:
+					waypoints[save_mouse].insert(0, (xt + 0.125 + R1, save_y - 0.125 - R1, np.pi))
+		# choose one mouse to leave behind
+		pushMice = [(save_mouse - 1) % N, save_mouse, (save_mouse + 1) % N]
+		stayAtHomeMouse = (save_mouse + 2) % N
+		a = np.arctan2(miceData[stayAtHomeMouse].pos.y, miceData[stayAtHomeMouse].pos.x)
+		waypoints[stayAtHomeMouse].append((0.3 * np.cos(a),0.3 * np.sin(a), a + np.pi)) # opposite quadrant dude actually
+		# move other two mice into position
+		waypoints[pushMice[0]].append((xt + OFF, yt + R2, at))
+		waypoints[pushMice[0]].append((xt + OFF, yt, at))
+		waypoints[pushMice[2]].append((xt - OFF, yt + R2, at))
+		waypoints[pushMice[2]].append((xt - OFF, yt, at))
+		for i in [pushMice[0], pushMice[2]]:
+			if miceData[i].pos.y < yt + R2:
+				if miceData[i].pos.x < xt:
+					waypoints[i].insert(0, (xt - 0.125 - R1 - R2, yt + R2, 0))
+					if miceData[i].pos.x > xt - 0.125 - R1 - R2:
+						waypoints[i].insert(0, (xt - 0.125 - R1 - R2, save_y - 0.125 - R1 - R2, np.pi/2))
+				else:
+					waypoints[i].insert(0, (xt + 0.125 + R1 + R2, yt + R2, np.pi))
+					if miceData[i].pos.x < xt + 0.125 + R1 + R2:
+						waypoints[i].insert(0, (xt + 0.125 + R1 + R2, save_y - 0.125 - R1 - R2, np.pi/2))
+	else:
+		xt, yt, at = save_x, save_y - 0.125 - 0.05, np.pi/2
+		# place save_mouse
+		waypoints[save_mouse].append((xt, yt, at))
+		if miceData[save_mouse].pos.y > save_y - 0.125:
+			if miceData[save_mouse].pos.x < xt:
+				waypoints[save_mouse].insert(0, (xt - 0.125 - 0.05, yt, 0))
+				if miceData[save_mouse].pos.y > save_y + 0.125:
+					waypoints[save_mouse].insert(0, (xt - 0.125 - 0.05, save_y + 0.125 + 0.05, 0))
+			else:
+				waypoints[save_mouse].insert(0, (xt + 0.125 + 0.05, yt, np.pi))
+				if miceData[save_mouse].pos.y > save_y + 0.125:
+					waypoints[save_mouse].insert(0, (xt + 0.125 + 0.05, save_y + 0.125 + 0.05, np.pi))
+		# choose one mouse to leave behind
+		pushMice = [(save_mouse - 1) % N, save_mouse, (save_mouse + 1) % N]
+		stayAtHomeMouse = (save_mouse + 2) % N
+		a = np.arctan2(miceData[stayAtHomeMouse].pos.y, miceData[stayAtHomeMouse].pos.x)
+		waypoints[stayAtHomeMouse].append((0.3 * np.cos(a),0.3 * np.sin(a), a + np.pi)) # opposite quadrant dude actually
+		# move other two mice into position
+		waypoints[pushMice[0]].append((xt - OFF, yt - R2, at))
+		waypoints[pushMice[0]].append((xt - OFF, yt, at))
+		waypoints[pushMice[2]].append((xt + OFF, yt - R2, at))
+		waypoints[pushMice[2]].append((xt + OFF, yt, at))
+		for i in [pushMice[0], pushMice[2]]:
+			if miceData[i].pos.y > yt - R2:
+				if miceData[i].pos.x < xt:
+					waypoints[i].insert(0, (xt - 0.125 - R1 - R2, yt - R2, 0))
+					if miceData[i].pos.x > xt - 0.125 - R1 - R2:
+						waypoints[i].insert(0, (xt - 0.125 - R1 - R2, save_y + 0.125 + R1 + R2, -np.pi/2))
+				else:
+					waypoints[i].insert(0, (xt + 0.125 + R1 + R2, yt - R2, np.pi))
+					if miceData[i].pos.x < xt + 0.125 + R1 + R2:
+						waypoints[i].insert(0, (xt + 0.125 + R1 + R2, save_y + 0.125 + R1 + R2, -np.pi/2))
+
+mouseTop = False
+
+def computeRegroupX(i):
+	R = 0.07 # distance from box
+	OFF = 0.085 # offset from other mice
+	global mouseTop
+	if i == 0:
+		mouseTop = miceData[pushMice[0]].pos.y > 0
+
+	if mouseTop > 0: # mice on top
+		if save_x > 0:
+			waypoints[pushMice[i]].append((save_x + 0.125 + R, 0.125 + R, -np.pi/2))
+			waypoints[pushMice[i]].append((save_x + 0.125 + R, OFF * (i - 1), np.pi))
+		else:
+			i = 2 - i # need to invert
+			waypoints[pushMice[i]].append((save_x - 0.125 - R, 0.125 + R, -np.pi/2))
+			waypoints[pushMice[i]].append((save_x - 0.125 - R, OFF * (1 - i), 0))
+	else: # mice on bottom
+		if save_x > 0:
+			i = 2 - i
+			waypoints[pushMice[i]].append((save_x + 0.125 + R, -0.125 - R, np.pi/2))
+			waypoints[pushMice[i]].append((save_x + 0.125 + R, OFF * (i - 1), np.pi))
+		else:
+			waypoints[pushMice[i]].append((save_x - 0.125 - R, -0.125 - R, np.pi/2))
+			waypoints[pushMice[i]].append((save_x - 0.125 - R, OFF * (1 - i), 0))
 
 # Math helpers
 def modpi(ang):
@@ -100,6 +213,11 @@ def main():
 	# State machine setup
 	masterStates = Enum('masterStates', 'SEARCH HOME REGROUP RETRIEVE DONE')
 	state = masterStates.SEARCH
+	y_retrieve = True
+	pushMiceRegrouper = 0
+
+	global waypoints
+	waypoints = [[] for i in range(N)]
 
 	# TODO DEMO REMOVE LATER
 	poses = [(1,0,np.pi/2), (0,1,np.pi), (-1,0,-np.pi/2), (0,-1,0)]
@@ -113,40 +231,62 @@ def main():
 				for i in range(N):
 					stopMouse(i)
 			else:
+
+				# INSERT SEARCH CODE HERE
 				# TODO DEMO REMOVE LATER
 				if sum([dist(miceData[i].pos.x, miceData[i].pos.y, poses[i][0], poses[i][1]) for i in range(N)]) < 0.01:
 					poses = poses[1:] + [poses[0]]
+					# poses = [poses[-1]] + poses[:-1]
 
 				for i in range(N):
-					cmd = MouseCommand()
-					cmd.type = MouseCommand.POSITION
-					cmd.x = poses[i][0]
-					cmd.y = poses[i][1]
-					cmd.ang = poses[i][2]
-					miceControl[i].publish(cmd)
+					posMouse(i, poses[i][0], poses[i][1], poses[i][2])
+				# TODO DEMO REMOVE LATER
+
 		elif state == masterStates.HOME: # get a really accurate estimate of box
 			if miceData[save_mouse].finished:
 				state = masterStates.REGROUP
 				storeEstimate(1.25)
-				# TODO change this, currently stops everyone, can probs compute waypoints
-				for i in range(N):
-					stopMouse(i)
+				computeRegroupY()
 			else:
-				cmd = MouseCommand()
-				cmd.type = MouseCommand.HOME
-				cmd.y = 0
-				miceControl[save_mouse].publish(cmd)
+				homeMouse(save_mouse, 0)
 		elif state == masterStates.REGROUP: # move everyone into position
-			# TODO move everyone including the homer, move last guy to origin
-			pass
+			if not any(waypoints):
+				if not y_retrieve and pushMiceRegrouper < 2:
+					pushMiceRegrouper += 1
+					computeRegroupX(pushMiceRegrouper)
+				else:	
+					state = masterStates.RETRIEVE
+			else:
+				for i in range(N):
+					if waypoints[i]:
+						pt = waypoints[i][0]
+						if dist(miceData[i].pos.x, miceData[i].pos.y, pt[0], pt[1]) + abs(modpi(miceData[i].pos.ang - pt[2])) < 0.005:
+							waypoints[i].pop(0)
+						else:
+							posMouse(i, pt[0], pt[1], pt[2])
+					else:
+						stopMouse(i)
 		elif state == masterStates.RETRIEVE:
-			# TODO tell everyone to go forward
-			# also go back to HOME state and do other axis
-			pass
+			x, y, _, _ = getEstimate()
+			if y_retrieve and abs(y) <= 0.06:
+				state = masterStates.REGROUP
+				storeEstimate(1.25) # box will slide a little bit
+				y_retrieve = False
+				pushMiceRegrouper = 0
+				computeRegroupX(pushMiceRegrouper)
+			elif not y_retrieve and abs(x) <= 0.05:
+				state = masterStates.DONE
+			else:
+				for i in pushMice:
+					cmd = MouseCommand()
+					cmd.type = MouseCommand.PUSH
+					cmd.x = 0.5
+					miceControl[i].publish(cmd)
 		else: # DONE
-			pass
+			for i in range(N):
+				stopMouse(i)
 
-		# TODO Mod as needed, just visualization aid
+		# Mod as needed, just visualization aid
 		displayEstimate()
 
 		r.sleep()
