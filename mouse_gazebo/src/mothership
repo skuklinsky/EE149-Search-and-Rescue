@@ -28,7 +28,7 @@ def main():
 		pass # wait for mice to bootup and send telemetry
 
 	# TODO DEMO REMOVE LATER
-	poses = [(1,0,np.pi/2), (0,1,np.pi), (-1,0,-np.pi/2), (0,-1,0)]
+	poses = [(2,0,np.pi/2), (0,2,np.pi), (-2,0,-np.pi/2), (0,-2,0)]
 
 	r = rospy.Rate(30)
 	while not rospy.is_shutdown():
