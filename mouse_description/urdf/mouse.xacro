@@ -177,7 +177,7 @@
 	</link>
 
 	<joint name="front_cam_mnt" type="fixed">
-		<origin xyz="0 0 0.027" rpy="0 0 1.5708"/>
+		<origin xyz="0 0.0025 0.027" rpy="0 0 1.57079632679"/>
 		<parent link="base_link"/>
 		<child link="front_cam"/>
 	</joint>
@@ -188,15 +188,15 @@
 		<sensor name="front_cam" type="camera">
 			<update_rate>30</update_rate>
 			<camera name="front_cam">
-				<horizontal_fov>2</horizontal_fov>
+				<horizontal_fov>2.65</horizontal_fov>
 				<image>
 					<width>640</width>
-					<height>480</height>
+					<height>360</height>
 					<format>R8G8B8</format>
 				</image>
 				<clip>
 					<near>0.001</near>
-					<far>0.5</far>
+					<far>0.25</far>
 				</clip>
 			</camera>
 			<plugin name="gazebo_ros_camera" filename="libgazebo_ros_camera.so">

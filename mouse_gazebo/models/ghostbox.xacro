@@ -1,7 +1,6 @@
 <?xml version="1.0" ?>
 <robot name="box" xmlns:xacro="http://www.ros.org/wiki/xacro">
-<!-- TODO adjust parameters -->
-	<xacro:property name="len" value="0.25"/>
+	<xacro:property name="len" value="0.249"/>
 	<xacro:property name="mass" value="0.5"/>
 
 	<link name="base_link">
@@ -12,12 +11,8 @@
 			</geometry>
 		</visual>
 
-		<collision>
-			<origin xyz="0 0 ${len/2}" rpy="0 0 0"/>
-			<geometry>
-				<box size="${len} ${len} ${len}"/>
-			</geometry>
-		</collision>
+		<!-- Collision bitmasks not parsed properly currently -->
+		<!-- So here's the janky workaround, actually cleaner -->
 
 		<inertial>
 			<origin xyz="0 0 ${len/2}" rpy="0 0 0"/>
@@ -29,10 +24,11 @@
 		</inertial>
 	</link>
 
-<!-- TODO change friction -->
 	<gazebo reference="base_link">
-		<mu1>0.3</mu1>
-		<mu2>0.3</mu2>
-		<material>Gazebo/Blue</material>
+		<visual>
+			<plugin name="invisible" filename="libmouse_gazebo.so"/>
+		</visual>
+		<turnGravityOff>true</turnGravityOff>
+		<material>Gazebo/GreenTransparent</material>
 	</gazebo>
 </robot>

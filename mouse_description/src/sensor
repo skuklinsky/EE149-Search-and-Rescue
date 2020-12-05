@@ -8,7 +8,7 @@ from sensor_msgs.msg import Image
 
 # Aggregates color and bumper data from sensors
 
-AVERAGE = 3
+AVERAGE = 6
 leftBump = [False] * AVERAGE
 rightBump = [False] * AVERAGE
 leftFrontBump = [False] * AVERAGE

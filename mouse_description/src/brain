@@ -41,15 +41,18 @@ def modpi(ang):
 def dist(x1, y1, x2, y2):
 	return np.sqrt((y1-y2)**2 + (x1-x2)**2)
 
+def map(val, in_min, in_max, out_min, out_max):
+	return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+
 def getMouseNum():
 	return int(rospy.get_namespace()[-2])
 
 # Control Loops
+finished = False
 
 # Position based control
 # Uses state machine that performs actions while in a state, not on transition, for cleaner code
-# extremely strange instability above ~1.5m/s, happens in real life too
-# just drive slow and it's ok
+# extremely strange instability above ~1.5m/s, happens in real life too, just drive slow and it's ok
 def positionLoop(xd, yd, angd=0, MAXLIN=0.5, MAXANG=8):
 	ex = xd - pos.x
 	ey = yd - pos.y
@@ -80,7 +83,7 @@ def positionLoop(xd, yd, angd=0, MAXLIN=0.5, MAXANG=8):
 		ulin = 0
 		uang = 10 * eango
 	elif positionLoop.state == positionLoop.States.BEELINE:
-		ulin = 10 * elin
+		ulin = 8 * elin
 		uang = 10 * eango
 	elif positionLoop.state == positionLoop.States.ALIGN:
 		ulin = 0
@@ -93,12 +96,177 @@ def positionLoop(xd, yd, angd=0, MAXLIN=0.5, MAXANG=8):
 	cmd = Twist()
 	cmd.linear.x = np.clip(ulin, 0, MAXLIN)
 	cmd.angular.z = np.clip(uang, -MAXANG, MAXANG)
-
 	return cmd
 
 positionLoop.States = Enum('posStates', 'ORIENT BEELINE ALIGN')
 positionLoop.state = positionLoop.States.ORIENT
 
+# Bumper based control
+# Just heads straight and rams into box and keeps front bumpers pressed
+def pushLoop(xd, MAXLIN=0.5, MAXANG=8):
+	if sense.leftFrontBump and sense.rightFrontBump:
+		uang = 0
+	elif sense.leftBump or sense.leftFrontBump:
+		uang = 1
+	elif sense.rightBump or sense.rightFrontBump:
+		uang = -1
+	else:
+		uang = 0
+
+	# send it off
+	cmd = Twist()
+	cmd.linear.x = np.clip(xd, 0, MAXLIN)
+	cmd.angular.z = np.clip(uang, -MAXANG, MAXANG)
+	return cmd
+
+# Homing function
+# Uses state machine
+# Aligns to desired offset and keeps front bumpers pressed
+def homeLoop(yd, MAXLIN=0.5, MAXANG=8):
+	global finished
+	finished = False
+	if homeLoop.state == homeLoop.States.HOME:
+		if sense.leftFrontBump and sense.rightFrontBump:
+			if abs(colorNorm() - yd) < 0.003:
+				homeLoop.state = homeLoop.States.DONE
+				return Twist()
+			else:
+				homeLoop.state = homeLoop.States.BACK
+				homeLoop.counter = 0
+				return Twist()
+		else:
+			e = colorNorm() - yd
+			uang = 20 * e
+			if sense.leftFrontBump or sense.leftBump:
+				uang += 3
+			if sense.rightFrontBump or sense.rightBump:
+				uang -= 3
+			cmd = Twist()
+			cmd.linear.x = 0.1
+			cmd.angular.z = np.clip(uang, -MAXANG, MAXANG)
+			return cmd
+	elif homeLoop.state == homeLoop.States.BACK:
+		if homeLoop.counter > 20:
+			homeLoop.state = homeLoop.States.HOME
+			return Twist()
+		else:
+			homeLoop.counter += 1
+			e = colorNorm() - yd
+			uang = -3 * e
+			cmd = Twist()
+			cmd.linear.x = -0.1
+			cmd.angular.z = np.clip(uang, -MAXANG, MAXANG)
+			return cmd
+	elif homeLoop.state == homeLoop.States.DONE:
+		finished = True
+		return pushLoop(0.001) # maintain pressure
+
+homeLoop.States = Enum('homeStates', 'HOME BACK DONE')
+homeLoop.state = homeLoop.States.HOME
+homeLoop.counter = 0
+
+# Velocity Function
+# Raw interface to cmd_vel
+def velocLoop(xd, angd, MAXLIN=0.5, MAXANG=8):
+	cmd = Twist()
+	cmd.linear.x = np.clip(xd, 0, MAXLIN)
+	cmd.angular.z = np.clip(angd, -MAXANG, MAXANG)
+	return cmd
+
+# Estimation Algorithm
+def estimateBox():
+	x, y, a, c = 0, 0, 0, 0
+	xm, ym, am, dl = 0, 0, 0, 0
+
+	# Based on 3D model of mouse in Fusion 360
+	# Bumper sensors flexing is a feature not a bug :P
+	# Assumes box is 0.25m
+	# Assumes camera range is 0.25m and can see entire box when against it
+	# Lots of constants experimentally determined
+
+	# Algorithm first computes location of box relative to mouse frame
+	# Mouse frame is x-axis in front of mouse
+	# Then transforms to world frame for final estimate
+
+	if sense.leftBump and sense.leftFrontBump: # Two bumpers == high accuracy
+		c = 1.0
+		xm = 0.0305 + 0.1028 # mouse + box
+		ym = 0.0202 + 0.0711 # mouse + box
+		am = 0.6056 # 34.7deg
+		dl = map(colorNorm(), 0.15, 0.25, -0.125, 0.125)
+	elif sense.leftFrontBump and sense.rightFrontBump:
+		# most accurate sensing method
+		c = 1.5
+		xm = 0.037 + 0.125 # mouse + box
+		ym = 0
+		am = 0 # flat relative to mouse
+		dl = map(colorNorm(), -0.25, 0.25, -0.125, 0.125)
+	elif sense.rightFrontBump and sense.rightBump:
+		c = 1.0
+		xm = 0.0305 + 0.1028 # mouse + box
+		ym = -0.0202 - 0.0711 # mouse + box
+		am = -0.6056 # 34.7deg
+		dl = map(colorNorm(), -0.25, -0.15, -0.125, 0.125)
+	elif sense.leftBump: # One bumper == medium accuracy
+		c = 0.25
+		xm = 0.0247 + 0.0992 # mouse + box
+		ym = 0.0286 + 0.0763 # mouse + box
+		am = 0.6562 # 37.6deg
+		dl = map(colorNorm(), 0.0, 0.3, -0.125, 0.125)
+	elif sense.rightBump:
+		c = 0.25
+		xm = 0.0247 + 0.0992 # mouse + box
+		ym = -0.0286 - 0.0763 # mouse + box
+		am = -0.6562 # 37.6deg
+		dl = map(colorNorm(), -0.3, 0.0, -0.125, 0.125)
+	elif sense.leftFrontBump:
+		c = 0.25
+		xm = 0.0368 + 0.1193 # mouse + box
+		ym = 0.0106 + 0.0372 # mouse + box
+		am = 0.3019 # 17.3deg
+		dl = map(colorNorm(), -0.2, 0.3, -0.125, 0.125)
+	elif sense.rightFrontBump:
+		c = 0.25
+		xm = 0.0368 + 0.1193 # mouse + box
+		ym = -0.0106 - 0.0372 # mouse + box
+		am = -0.3019 # 17.3deg
+		dl = map(colorNorm(), -0.3, 0.2, -0.125, 0.125)
+	elif any(sense.color): # No bumpers but camera == low accuracy
+		# DO NOT TRIGGER RETRIEVAL STATE ON THIS (NOT REALISTIC)
+		# Uses apparent size to give very rough estimate
+		c = 0.02
+		R = 0.1 + 0.125 # assumed distance
+		am = colorNorm() * 2.65
+		xm = R * np.cos(am)
+		ym = R * np.sin(am)
+
+	# shift using color sensor
+	xm -= dl * np.sin(am)
+	ym += dl * np.cos(am)
+
+	# rotate by mouse angle to get offset in world frame
+	dx = xm * np.cos(pos.ang) - ym * np.sin(pos.ang)
+	dy = xm * np.sin(pos.ang) + ym * np.cos(pos.ang)
+
+	x = pos.x + dx
+	y = pos.y + dy
+	a = pos.ang + am
+	return x, y, a, c
+
+def colorNorm(): # 0.5 to -0.5
+	return (sense.colorLength - colorLeft() - colorRight()) / 2 / sense.colorLength
+
+def colorLeft():
+	for i in range(sense.colorLength):
+		if sense.color[i]:
+			return i
+	return -1
+
+def colorRight():
+	for i in reversed(range(sense.colorLength)):
+		if sense.color[i]:
+			return i
+	return sense.colorLength
 
 def main():
 	ns = rospy.get_namespace()
@@ -121,13 +289,20 @@ def main():
 		if cmd:
 			if cmd.type == MouseCommand.POSITION:
 				motor.publish(positionLoop(cmd.x, cmd.y, cmd.ang))
+			elif cmd.type == MouseCommand.PUSH:
+				motor.publish(pushLoop(cmd.x))
+			elif cmd.type == MouseCommand.HOME:
+				motor.publish(homeLoop(cmd.y))
+			elif cmd.type == MouseCommand.VELOC:
+				motor.publish(velocLoop(cmd.x, cmd.ang))
 			else:
 				rospy.logerr('Invalid command!')
 
-		# TODO box position estimation
+		# Box estimation and feedback
 		msg = MouseData()
 		msg.pos = pos
-		msg.boxPos = pos
+		msg.boxPos.x, msg.boxPos.y, msg.boxPos.ang, msg.confidence = estimateBox()
+		msg.finished = finished
 		telem.publish(msg)
 
 		r.sleep()
