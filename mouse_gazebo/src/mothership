@@ -219,8 +219,12 @@ def main():
 	global waypoints
 	waypoints = [[] for i in range(N)]
 
-	# TODO DEMO REMOVE LATER
-	poses = [(2,0,np.pi/2), (0,2,np.pi), (-2,0,-np.pi/2), (0,-2,0)]
+	sensor_width = 0.5 # Is this value correct? Value should be "wing span" of the mouse's cube sensor
+	step_dist = sensor_width * np.sqrt(2)
+	left_poses = [[0, step_dist], [-step_dist, 0], [0, -step_dist], [step_dist, 0]]
+	right_poses = [[step_dist, 0], [0, step_dist], [-step_dist, 0], [0, -step_dist]]
+	poses = right_poses
+	step_num = 0 # Sequence: right_pos, left_pos, (update poses). left_pos, right_pos, (update poses). Repeat.
 
 	r = rospy.Rate(30)
 	while not rospy.is_shutdown():
@@ -231,16 +235,29 @@ def main():
 				for i in range(N):
 					stopMouse(i)
 			else:
-
-				# INSERT SEARCH CODE HERE
-				# TODO DEMO REMOVE LATER
+				# If all mice reach their destination, go to next step in sequence
 				if sum([dist(miceData[i].pos.x, miceData[i].pos.y, poses[i][0], poses[i][1]) for i in range(N)]) < 0.01:
-					poses = poses[1:] + [poses[0]]
-					# poses = [poses[-1]] + poses[:-1]
+					step_num += 1
+
+					
+					if (step_num % 2 == 0):
+						left_poses[0][1] += step_dist
+						left_poses[1][0] -= step_dist
+						left_poses[2][1] -= step_dist
+						left_poses[3][0] += step_dist
+						right_poses[0][0] += step_dist
+						right_poses[1][1] += step_dist
+						right_poses[2][0] -= step_dist
+						right_poses[3][1] -= step_dist
+
+					if (step_num % 4 == 0) or (step_num % 4 == 3):
+						poses = right_poses
+					else:
+						poses = left_poses
+
 
 				for i in range(N):
-					posMouse(i, poses[i][0], poses[i][1], poses[i][2])
-				# TODO DEMO REMOVE LATER
+					posMouse(i, poses[i][0], poses[i][1], 0)  # what's the point of the third arg (cmd.ang)? Doesn't seem to effect anything
 
 		elif state == masterStates.HOME: # get a really accurate estimate of box
 			if miceData[save_mouse].finished:
